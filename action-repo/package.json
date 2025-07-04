@@ -1,0 +1,25 @@
+{
+  "name": "action-repo",
+  "version": "1.0.0",
+  "description": "Sample repository for testing GitHub webhooks",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node app.js"
+  },
+  "keywords": [
+    "github",
+    "webhooks",
+    "testing",
+    "demo"
+  ],
+  "author": "Developer",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
