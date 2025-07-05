@@ -312,8 +312,8 @@ def github_webhook():
 
                 cursor.execute("""
                     INSERT INTO webhook_events
-                    (request_id, author, action, from_branch, to_branch, timestamp, raw_payload)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    (request_id, author, action, from_branch, to_branch, timestamp, raw_payload, event_type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     formatted['request_id'],
                     formatted['author'],
@@ -321,7 +321,8 @@ def github_webhook():
                     formatted['from_branch'],
                     formatted['to_branch'],
                     formatted['timestamp'],
-                    json.dumps(payload)
+                    json.dumps(payload),
+                    event_type
                 ))
                 conn.commit()
                 cursor.close()
@@ -485,8 +486,8 @@ def test_insert():
 
             cursor.execute("""
                 INSERT INTO webhook_events
-                (request_id, author, action, from_branch, to_branch, timestamp, raw_payload)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (request_id, author, action, from_branch, to_branch, timestamp, raw_payload, event_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 test_data['request_id'],
                 test_data['author'],
@@ -494,7 +495,8 @@ def test_insert():
                 test_data['from_branch'],
                 test_data['to_branch'],
                 test_data['timestamp'],
-                test_data['raw_payload']
+                test_data['raw_payload'],
+                'push'  # Default event type for test
             ))
 
             conn.commit()
