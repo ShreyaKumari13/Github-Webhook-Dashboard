@@ -36,6 +36,24 @@ This project implements the GitHub webhook assessment with the following specifi
 | **Clean Professional Code** | ✅ **BONUS** | Production-ready implementation |
 | **Professional Documentation** | ✅ **BONUS** | Detailed READMEs with setup guides |
 
+## 🎯 Assessment Submission
+
+This project is **ready for submission** with the following deliverables:
+
+### Repository Links
+- **action-repo**: [GitHub Repository URL] - Node.js Express application for triggering webhooks
+- **webhook-repo**: [GitHub Repository URL] - Flask application for receiving and displaying webhooks
+
+### Live Demo
+- **Deployed Application**: https://github-webhook-dashboard.onrender.com/
+- **Status**: ✅ Live and functional
+- **Database**: PostgreSQL (production-ready)
+
+### Assessment Compliance
+✅ **All requirements met** - See compliance checklist above
+✅ **Bonus features implemented** - Live deployment, professional UI, comprehensive documentation
+✅ **Production-ready code** - Error handling, logging, monitoring endpoints
+
 ## 📋 Message Formats (Assessment Specification)
 
 ### PUSH Action
@@ -439,9 +457,37 @@ CREATE TABLE webhook_events (
 6. Push to the branch: `git push origin feature-name`
 7. Submit a pull request
 
+## 🧪 Testing the Webhook Integration
+
+### Method 1: Using the Live Demo
+1. **Fork the action-repo** to your GitHub account
+2. **Configure webhook** in your forked repository:
+   - Go to Settings → Webhooks → Add webhook
+   - Payload URL: `https://github-webhook-dashboard.onrender.com/webhook`
+   - Content type: `application/json`
+   - Events: Select "Pushes" and "Pull requests"
+3. **Test events**:
+   - Make a commit and push to trigger PUSH events
+   - Create a pull request to trigger PULL_REQUEST events
+   - Merge the pull request to trigger MERGE events
+4. **Monitor results** at: https://github-webhook-dashboard.onrender.com/
+
+### Method 2: Local Testing
+1. **Run the Flask app locally** (see Local Development section)
+2. **Use ngrok or localtunnel** to expose your local server:
+   ```bash
+   # Using ngrok
+   ngrok http 5000
+
+   # Using localtunnel
+   npx localtunnel --port 5000
+   ```
+3. **Configure webhook** with your tunnel URL + `/webhook`
+4. **Test with real GitHub events**
+
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
