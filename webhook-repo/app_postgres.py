@@ -9,6 +9,7 @@ import os
 import json
 import hashlib
 import hmac
+import time
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
@@ -256,6 +257,9 @@ def format_webhook_message(event_type, payload):
 @app.route('/webhook', methods=['POST'])
 def github_webhook():
     """Handle GitHub webhook events."""
+    db_error = None
+    db_success = False
+
     try:
         # Get headers
         signature = request.headers.get('X-Hub-Signature-256')
@@ -285,7 +289,7 @@ def github_webhook():
 
         except json.JSONDecodeError:
             return jsonify({'error': 'Invalid JSON payload'}), 400
-        
+
         # Format the message
         formatted = format_webhook_message(event_type, payload)
 
@@ -322,7 +326,9 @@ def github_webhook():
                 conn.commit()
                 cursor.close()
                 print(f"✅ Stored {formatted['action']} event by {formatted['author']}")
+                db_success = True
             except Exception as e:
+                db_error = str(e)
                 print(f"❌ Database insert failed: {e}")
                 print(f"❌ Formatted data: {formatted}")
                 # Try to rollback
@@ -333,18 +339,26 @@ def github_webhook():
             finally:
                 return_db_connection(conn)
         else:
+            db_error = "No database connection available"
             print("❌ No database connection available")
-        
-        return jsonify({
+
+        # Include database status in response for debugging
+        response_data = {
             'status': 'success',
             'event_type': event_type,
             'action': formatted['action'],
-            'message': formatted['message']
-        }), 200
-        
+            'message': formatted['message'],
+            'db_success': db_success
+        }
+
+        if db_error:
+            response_data['db_error'] = db_error
+
+        return jsonify(response_data), 200
+
     except Exception as e:
         print(f"❌ Webhook processing error: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/events')
 def get_events():
@@ -444,6 +458,66 @@ def health_check():
         'database': 'PostgreSQL',
         'timestamp': datetime.now().isoformat()
     }), 200
+
+@app.route('/admin/test-insert', methods=['POST'])
+def test_insert():
+    """Admin endpoint to test database insertion directly."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        try:
+            cursor = conn.cursor()
+
+            # Test data
+            test_data = {
+                'request_id': 'test_' + str(int(time.time())),
+                'author': 'TestUser',
+                'action': 'PUSH',
+                'from_branch': None,
+                'to_branch': 'main',
+                'timestamp': datetime.now(),
+                'raw_payload': '{"test": true}'
+            }
+
+            print(f"🧪 Testing database insert with: {test_data}")
+
+            cursor.execute("""
+                INSERT INTO webhook_events
+                (request_id, author, action, from_branch, to_branch, timestamp, raw_payload)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                test_data['request_id'],
+                test_data['author'],
+                test_data['action'],
+                test_data['from_branch'],
+                test_data['to_branch'],
+                test_data['timestamp'],
+                test_data['raw_payload']
+            ))
+
+            conn.commit()
+            cursor.close()
+
+            print(f"✅ Successfully inserted test record")
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Test record inserted successfully',
+                'test_data': test_data,
+                'timestamp': datetime.now().isoformat()
+            }), 200
+
+        except Exception as e:
+            print(f"❌ Database insert test error: {e}")
+            return jsonify({'error': f'Database operation failed: {str(e)}'}), 500
+        finally:
+            return_db_connection(conn)
+
+    except Exception as e:
+        print(f"❌ Test insert error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/admin/clear-database', methods=['POST'])
 def clear_database():
