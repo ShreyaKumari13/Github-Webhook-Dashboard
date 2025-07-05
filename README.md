@@ -1,4 +1,4 @@
-# 🔗 GitHub Webhook Assessment - Complete Project
+# 🔗 GitHub Webhook Assessment
 
 A comprehensive GitHub webhook monitoring system implementing real-time event tracking with a two-repository architecture. This project demonstrates professional-grade development skills with Flask, PostgreSQL, and modern web technologies.
 
