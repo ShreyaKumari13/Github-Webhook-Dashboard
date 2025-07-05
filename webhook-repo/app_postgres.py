@@ -49,15 +49,15 @@ def init_database():
         conn = connection_pool.getconn()
         cursor = conn.cursor()
         
-        # Create events table
+        # Create events table matching the MongoDB schema from assessment
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS webhook_events (
                 id SERIAL PRIMARY KEY,
-                event_type VARCHAR(50) NOT NULL,
-                repository VARCHAR(255),
-                actor VARCHAR(255),
-                action VARCHAR(100),
-                message TEXT,
+                request_id VARCHAR(255) NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                action VARCHAR(100) NOT NULL,
+                from_branch VARCHAR(255),
+                to_branch VARCHAR(255),
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 raw_payload JSONB
             )
@@ -108,68 +108,83 @@ def verify_github_signature(payload_body, signature_header):
         return False
 
 def format_webhook_message(event_type, payload):
-    """Format webhook payload into a readable message."""
+    """Format webhook payload according to assessment requirements."""
     try:
-        repo_name = payload.get('repository', {}).get('full_name', 'Unknown Repository')
-        
+        # Generate request_id using commit hash for push, PR ID for pull requests
+        request_id = None
+        author = None
+        action = None
+        from_branch = None
+        to_branch = None
+        timestamp = datetime.now().strftime("%d %B %Y - %I:%M %p UTC")
+
         if event_type == 'push':
-            pusher = payload.get('pusher', {}).get('name', 'Unknown')
+            # Extract push information
+            pusher = payload.get('pusher', {}).get('name') or payload.get('sender', {}).get('login', 'Unknown')
+            to_branch = payload.get('ref', '').replace('refs/heads/', '')
             commits = payload.get('commits', [])
-            commit_count = len(commits)
-            branch = payload.get('ref', '').replace('refs/heads/', '')
-            
-            return {
-                'type': 'push',
-                'repository': repo_name,
-                'actor': pusher,
-                'action': f'pushed {commit_count} commit(s)',
-                'message': f"🚀 {pusher} pushed {commit_count} commit(s) to {branch} in {repo_name}"
-            }
-            
+
+            # Use commit hash as request_id
+            if commits:
+                request_id = commits[0].get('id', 'unknown')[:7]  # Short commit hash
+            else:
+                request_id = 'push_' + str(hash(str(payload)))[:7]
+
+            author = pusher
+            action = 'PUSH'
+            from_branch = None  # Not applicable for push
+
+            # Format: {author} pushed to {to_branch} on {timestamp}
+            message = f'"{author}" pushed to "{to_branch}" on {timestamp}'
+
         elif event_type == 'pull_request':
-            action = payload.get('action', 'unknown')
+            # Extract pull request information
             pr = payload.get('pull_request', {})
-            pr_number = pr.get('number', 'Unknown')
-            pr_title = pr.get('title', 'Unknown')
-            actor = payload.get('sender', {}).get('login', 'Unknown')
-            
-            return {
-                'type': 'pull_request',
-                'repository': repo_name,
-                'actor': actor,
-                'action': f'{action} PR #{pr_number}',
-                'message': f"🔄 {actor} {action} pull request #{pr_number}: {pr_title} in {repo_name}"
-            }
-            
-        elif event_type == 'merge':
-            actor = payload.get('sender', {}).get('login', 'Unknown')
-            return {
-                'type': 'merge',
-                'repository': repo_name,
-                'actor': actor,
-                'action': 'merged changes',
-                'message': f"🔀 {actor} merged changes in {repo_name}"
-            }
-            
+            pr_action = payload.get('action', 'opened')
+
+            # Check if this is a merge (PR closed and merged)
+            if pr_action == 'closed' and pr.get('merged', False):
+                # Handle merge action (when PR is closed and merged)
+                author = payload.get('sender', {}).get('login', 'Unknown')
+                from_branch = pr.get('head', {}).get('ref', 'Unknown')
+                to_branch = pr.get('base', {}).get('ref', 'Unknown')
+                request_id = str(pr.get('number', 'unknown'))
+                action = 'MERGE'
+
+                # Format: {author} merged branch {from_branch} to {to_branch} on {timestamp}
+                message = f'"{author}" merged branch "{from_branch}" to "{to_branch}" on {timestamp}'
+
+            elif pr_action == 'opened':
+                # Only process 'opened' action as submission
+                author = pr.get('user', {}).get('login', 'Unknown')
+                from_branch = pr.get('head', {}).get('ref', 'Unknown')
+                to_branch = pr.get('base', {}).get('ref', 'Unknown')
+                request_id = str(pr.get('number', 'unknown'))
+                action = 'PULL_REQUEST'
+
+                # Format: {author} submitted a pull request from {from_branch} to {to_branch} on {timestamp}
+                message = f'"{author}" submitted a pull request from "{from_branch}" to "{to_branch}" on {timestamp}'
+            else:
+                # Skip other PR actions (synchronized, etc.)
+                return None
+
         else:
-            actor = payload.get('sender', {}).get('login', 'Unknown')
-            return {
-                'type': event_type,
-                'repository': repo_name,
-                'actor': actor,
-                'action': f'{event_type} event',
-                'message': f"📝 {actor} triggered {event_type} event in {repo_name}"
-            }
-            
+            # Skip other event types
+            return None
+
+        return {
+            'request_id': request_id,
+            'author': author,
+            'action': action,
+            'from_branch': from_branch,
+            'to_branch': to_branch,
+            'timestamp': datetime.now(),
+            'message': message
+        }
+
     except Exception as e:
         print(f"Error formatting message: {e}")
-        return {
-            'type': event_type,
-            'repository': 'Unknown',
-            'actor': 'Unknown',
-            'action': 'unknown action',
-            'message': f"📝 {event_type} event received"
-        }
+        return None
 
 @app.route('/webhook', methods=['POST'])
 def github_webhook():
@@ -194,27 +209,36 @@ def github_webhook():
         
         # Format the message
         formatted = format_webhook_message(event_type, payload)
-        
+
+        # Skip if event is not relevant (e.g., PR actions other than 'opened')
+        if formatted is None:
+            return jsonify({
+                'status': 'skipped',
+                'event_type': event_type,
+                'message': 'Event not processed (not relevant for dashboard)'
+            }), 200
+
         # Store in database
         conn = get_db_connection()
         if conn:
             try:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO webhook_events 
-                    (event_type, repository, actor, action, message, raw_payload)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO webhook_events
+                    (request_id, author, action, from_branch, to_branch, timestamp, raw_payload)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    formatted['type'],
-                    formatted['repository'],
-                    formatted['actor'],
+                    formatted['request_id'],
+                    formatted['author'],
                     formatted['action'],
-                    formatted['message'],
+                    formatted['from_branch'],
+                    formatted['to_branch'],
+                    formatted['timestamp'],
                     json.dumps(payload)
                 ))
                 conn.commit()
                 cursor.close()
-                print(f"✅ Stored {event_type} event from {formatted['repository']}")
+                print(f"✅ Stored {formatted['action']} event by {formatted['author']}")
             except Exception as e:
                 print(f"❌ Database insert failed: {e}")
             finally:
@@ -223,6 +247,7 @@ def github_webhook():
         return jsonify({
             'status': 'success',
             'event_type': event_type,
+            'action': formatted['action'],
             'message': formatted['message']
         }), 200
         
@@ -241,23 +266,36 @@ def get_events():
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT event_type, repository, actor, action, message, timestamp
-                FROM webhook_events 
-                ORDER BY timestamp DESC 
+                SELECT request_id, author, action, from_branch, to_branch, timestamp
+                FROM webhook_events
+                ORDER BY timestamp DESC
                 LIMIT 50
             """)
-            
+
             events = []
             for row in cursor.fetchall():
+                # Reconstruct the message based on action type
+                timestamp_str = row['timestamp'].strftime("%d %B %Y - %I:%M %p UTC") if row['timestamp'] else 'Unknown time'
+
+                if row['action'] == 'PUSH':
+                    message = f'"{row["author"]}" pushed to "{row["to_branch"]}" on {timestamp_str}'
+                elif row['action'] == 'PULL_REQUEST':
+                    message = f'"{row["author"]}" submitted a pull request from "{row["from_branch"]}" to "{row["to_branch"]}" on {timestamp_str}'
+                elif row['action'] == 'MERGE':
+                    message = f'"{row["author"]}" merged branch "{row["from_branch"]}" to "{row["to_branch"]}" on {timestamp_str}'
+                else:
+                    message = f'"{row["author"]}" performed {row["action"]} on {timestamp_str}'
+
                 events.append({
-                    'type': row['event_type'],
-                    'repository': row['repository'],
-                    'actor': row['actor'],
+                    'request_id': row['request_id'],
+                    'author': row['author'],
                     'action': row['action'],
-                    'message': row['message'],
+                    'from_branch': row['from_branch'],
+                    'to_branch': row['to_branch'],
+                    'message': message,
                     'timestamp': row['timestamp'].isoformat() if row['timestamp'] else None
                 })
-            
+
             cursor.close()
             return jsonify(events), 200
             
@@ -339,7 +377,7 @@ def dashboard():
         <div class="container">
             <div class="header">
                 <h1>🚀 GitHub Webhook Dashboard</h1>
-                <p>Real-time GitHub webhook events with PostgreSQL</p>
+                <p>Assessment Task - Real-time GitHub webhook events (Push, Pull Request, Merge)</p>
             </div>
 
             <div class="status" id="status">
@@ -347,7 +385,8 @@ def dashboard():
             </div>
 
             <div class="events">
-                <h2>Recent Events</h2>
+                <h2>Latest Repository Changes</h2>
+                <p><em>Polling every 15 seconds for new events...</em></p>
                 <div id="events-list" class="loading">Loading events...</div>
             </div>
         </div>
@@ -383,7 +422,7 @@ def dashboard():
                             <div class="event">
                                 <div class="event-message">${event.message}</div>
                                 <div class="event-details">
-                                    ${event.actor} • ${event.action} • ${event.timestamp}
+                                    Action: ${event.action} • Request ID: ${event.request_id}
                                 </div>
                             </div>
                         `).join('');

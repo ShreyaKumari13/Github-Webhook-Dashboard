@@ -1,21 +1,35 @@
-# 🔗 GitHub Webhook Monitor
+# 🔗 GitHub Webhook Assessment - webhook-repo
 
-A real-time monitoring system for GitHub repository events using webhooks. Monitor pushes, pull requests, merges, and other repository activities in real-time with a clean web interface.
+A Flask application that receives GitHub webhooks and displays them in a web dashboard. This is the **webhook-repo** component of the GitHub webhook assessment task.
 
-![Webhook Monitor](https://img.shields.io/badge/Status-Active-green)
+![Assessment](https://img.shields.io/badge/Assessment-Task-orange)
 ![Python](https://img.shields.io/badge/Python-3.7+-blue)
 ![Flask](https://img.shields.io/badge/Flask-2.0+-red)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue)
 
-## 🌟 Features
+## 🎯 Assessment Requirements
 
-- **Real-time monitoring** of GitHub repository events
-- **Clean web interface** with 15-second auto-refresh
-- **PostgreSQL storage** for event persistence and reliability
-- **Webhook security** with signature verification
-- **Multiple event types** support (push, pull_request, merge, etc.)
-- **Request tracking** with unique IDs
-- **Responsive design** for desktop and mobile
+This project implements the GitHub webhook assessment with the following specifications:
+
+- **Event Types**: PUSH, PULL_REQUEST, MERGE actions
+- **Message Formats**: Exact formats as specified in assessment
+- **Database**: PostgreSQL with assessment-specified schema
+- **UI Polling**: 15-second intervals for real-time updates
+- **Repository Structure**: Two-repo setup (action-repo + webhook-repo)
+
+## 📋 Message Formats (Assessment Specification)
+
+### PUSH Action
+**Format**: `"{author}" pushed to "{to_branch}" on {timestamp}`
+**Sample**: `"Travis" pushed to "staging" on 1st April 2021 - 9:30 PM UTC`
+
+### PULL_REQUEST Action
+**Format**: `"{author}" submitted a pull request from "{from_branch}" to "{to_branch}" on {timestamp}`
+**Sample**: `"Travis" submitted a pull request from "staging" to "master" on 1st April 2021 - 9:00 AM UTC`
+
+### MERGE Action (Brownie Points)
+**Format**: `"{author}" merged branch "{from_branch}" to "{to_branch}" on {timestamp}`
+**Sample**: `"Travis" merged branch "dev" to "master" on 2nd April 2021 - 12:00 PM UTC`
 
 ## 📋 Table of Contents
 
@@ -369,31 +383,31 @@ Example production command:
 gunicorn -w 4 -b 0.0.0.0:5000 app:app
 ```
 
-## 📊 Database Schema
+## 📊 Database Schema (Assessment Specification)
 
-Events are stored in PostgreSQL with the following table structure:
+Events are stored in PostgreSQL with the following table structure matching the assessment requirements:
 
 ```sql
 CREATE TABLE webhook_events (
     id SERIAL PRIMARY KEY,
-    event_type VARCHAR(50) NOT NULL,
-    repository VARCHAR(255),
-    actor VARCHAR(255),
-    action VARCHAR(100),
-    message TEXT,
+    request_id VARCHAR(255) NOT NULL,
+    author VARCHAR(255) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    from_branch VARCHAR(255),
+    to_branch VARCHAR(255),
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     raw_payload JSONB
 );
 ```
 
-**Column Descriptions:**
+**Column Descriptions (Assessment Schema):**
 - `id`: Auto-incrementing primary key
-- `event_type`: Type of GitHub event (PUSH, PULL_REQUEST, MERGE, etc.)
-- `repository`: Repository name (e.g., "user/repo-name")
-- `actor`: GitHub username who triggered the event
-- `action`: Specific action within the event type
-- `message`: Human-readable event description
-- `timestamp`: When the event was received
+- `request_id`: Git commit hash (for PUSH) or PR ID (for PULL_REQUEST/MERGE)
+- `author`: Name of the GitHub user making the action
+- `action`: GitHub action enum ("PUSH", "PULL_REQUEST", "MERGE")
+- `from_branch`: Git branch in LHS (source branch for PRs)
+- `to_branch`: Git branch in RHS (target branch for pushes/PRs)
+- `timestamp`: Datetime formatted string (UTC) for the time of action
 - `raw_payload`: Complete GitHub webhook payload as JSON
 
 ## 📝 Contributing

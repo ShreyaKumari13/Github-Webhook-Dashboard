@@ -23,7 +23,7 @@ This repository serves as the **source repository** for GitHub webhook events th
 │  (This Repo)    │                        │  (Flask Monitor) │
 │                 │                        │                  │
 │ • Express API   │                        │ • Webhook Handler│
-│ • Sample Data   │                        │ • MongoDB Store  │
+│ • Sample Data   │                        │ • PostgreSQL DB  │
 │ • Trigger Events│                        │ • Web Dashboard  │
 └─────────────────┘                        └──────────────────┘
 ```
@@ -211,9 +211,10 @@ This repository will generate the following webhook events when connected to Git
 All webhook events from this repository are captured and displayed in the **webhook-repo dashboard**:
 
 - **URL**: `https://your-tunnel-url.loca.lt/` (or your deployed URL)
-- **Auto-refresh**: Updates every 15 seconds
+- **Auto-refresh**: Updates every 15 seconds (as per assessment requirements)
 - **Event History**: Shows recent webhook events with details
 - **Request Tracking**: Each event includes a unique request ID
+- **Database**: PostgreSQL for reliable data storage
 
 ### Dashboard Features
 - ✅ Real-time event display
