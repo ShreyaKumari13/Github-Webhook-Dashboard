@@ -63,14 +63,12 @@ The API will be available at `http://localhost:3000`
    - Go to your repository **Settings** → **Webhooks**
    - Click **"Add webhook"**
    - Configure the webhook:
-     - **Payload URL**: `https://your-tunnel-url.loca.lt/webhook`
+     - **Payload URL**: `https://github-webhook-dashboard.onrender.com/webhook` (or your deployed URL)
      - **Content type**: `application/json`
-     - **Secret**: `gh_webhook_2024_$ecur3_K3y_#789_XyZ` (or your custom secret)
-     - **Events**: Select **"Send me everything"** or choose:
-       - ✅ Pushes
-       - ✅ Pull requests
-       - ✅ Issues
-       - ✅ Releases
+     - **Secret**: `gh_webhook_2024_$ecur3_K3y_#789_XyZ` (optional for testing)
+     - **Events**: Select **"Let me select individual events"** and choose:
+       - ✅ **Pushes** (required for PUSH events)
+       - ✅ **Pull requests** (required for PULL_REQUEST and MERGE events)
      - **Active**: ✅ Checked
 
 ### 3. Test Webhook Integration
@@ -137,10 +135,7 @@ git push origin v1.1.0
 ```
 action-repo/
 ├── 📄 README.md              # This documentation
-├── 📄 CONTRIBUTING.md        # Contribution guidelines
-├── 📄 LICENSE                # MIT License
 ├── 📄 package.json           # Node.js dependencies and scripts
-├── 📄 .gitignore             # Git ignore rules
 ├── 🚀 app.js                 # Main Express.js application
 └── 📁 src/
     └── 🔧 utils.js           # Utility functions
@@ -152,9 +147,6 @@ action-repo/
 - **`package.json`** - Node.js project configuration, dependencies, and useful scripts
 - **`src/utils.js`** - Utility functions for date formatting, validation, and more
 - **`README.md`** - Comprehensive project documentation
-- **`CONTRIBUTING.md`** - Guidelines for contributing to the project
-- **`LICENSE`** - MIT License for the project
-- **`.gitignore`** - Git ignore rules for Node.js projects
 
 ## 🎯 API Endpoints
 
@@ -300,7 +292,7 @@ curl https://your-tunnel.loca.lt/health
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+We welcome contributions!
 
 ### Quick Contribution Steps
 
@@ -313,11 +305,27 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
+
+## 🎯 Assessment Compliance
+
+This **action-repo** is part of the GitHub webhook assessment and serves as:
+
+✅ **Source Repository** - Generates webhook events for testing
+✅ **Event Trigger** - Produces PUSH, PULL_REQUEST, and MERGE events
+✅ **Professional Implementation** - Clean Node.js Express application
+✅ **Complete Documentation** - Detailed setup and usage instructions
+
+### Assessment Integration
+- **Webhook Target**: https://github-webhook-dashboard.onrender.com/webhook
+- **Event Types**: Push, Pull Request, Merge
+- **Real-time Monitoring**: Events appear in dashboard within 15 seconds
+- **Two-Repo Structure**: Works with companion webhook-repo Flask application
 
 ## 🔗 Related Projects
 
 - **[webhook-repo](../webhook-repo)** - Flask application that receives and displays webhook events
+- **Live Dashboard** - https://github-webhook-dashboard.onrender.com/
 - **GitHub Webhooks Documentation** - [Official GitHub Docs](https://docs.github.com/en/developers/webhooks-and-events/webhooks)
 
 ## 📞 Support
