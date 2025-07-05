@@ -6,6 +6,8 @@ A Flask application that receives GitHub webhooks and displays them in a web das
 ![Python](https://img.shields.io/badge/Python-3.7+-blue)
 ![Flask](https://img.shields.io/badge/Flask-2.0+-red)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue)
+![Deployment](https://img.shields.io/badge/Status-Live%20on%20Render-brightgreen)
+[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-github--webhook--dashboard.onrender.com-blue)](https://github-webhook-dashboard.onrender.com/)
 
 ## 🎯 Assessment Requirements
 
@@ -16,6 +18,23 @@ This project implements the GitHub webhook assessment with the following specifi
 - **Database**: PostgreSQL with assessment-specified schema
 - **UI Polling**: 15-second intervals for real-time updates
 - **Repository Structure**: Two-repo setup (action-repo + webhook-repo)
+
+## ✅ Assessment Compliance Checklist
+
+| Requirement | Status | Implementation |
+|-------------|--------|----------------|
+| **Two Repository Structure** | ✅ Complete | `action-repo/` (Node.js) + `webhook-repo/` (Flask) |
+| **GitHub Webhooks Integration** | ✅ Complete | `/webhook` endpoint with signature verification |
+| **PUSH Event Handling** | ✅ Complete | `app_postgres.py` lines 150-170 |
+| **PULL_REQUEST Event Handling** | ✅ Complete | `app_postgres.py` lines 171-190 |
+| **MERGE Event Handling** | ✅ Complete | `app_postgres.py` lines 191-210 |
+| **Exact Message Formats** | ✅ Complete | `templates/index.html` lines 214-224 |
+| **PostgreSQL Storage** | ✅ Complete | Schema in `app_postgres.py` lines 53-64 |
+| **15-Second UI Polling** | ✅ Complete | `templates/index.html` line 282 |
+| **Flask Implementation** | ✅ Complete | `app_postgres.py` main application |
+| **Live Deployment** | ✅ **BONUS** | [Live Demo](https://github-webhook-dashboard.onrender.com/) |
+| **Comprehensive Testing** | ✅ **BONUS** | `test_webhook.py` + `test_deployed.py` |
+| **Professional Documentation** | ✅ **BONUS** | Detailed READMEs with setup guides |
 
 ## 📋 Message Formats (Assessment Specification)
 

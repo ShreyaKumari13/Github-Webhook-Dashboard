@@ -116,23 +116,55 @@ def format_webhook_message(event_type, payload):
         action = None
         from_branch = None
         to_branch = None
-        timestamp = datetime.now().strftime("%d %B %Y - %I:%M %p UTC")
+        # Default timestamp with proper ordinal formatting
+        now = datetime.now()
+        day = now.day
+        suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
+        timestamp = now.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
 
         if event_type == 'push':
-            # Extract push information
-            pusher = payload.get('pusher', {}).get('name') or payload.get('sender', {}).get('login', 'Unknown')
+            # Extract push information - try multiple fields for author
+            author = None
+
+            # Try different ways to get the author
+            if payload.get('pusher', {}).get('name'):
+                author = payload['pusher']['name']
+            elif payload.get('head_commit', {}).get('author', {}).get('name'):
+                author = payload['head_commit']['author']['name']
+            elif payload.get('sender', {}).get('login'):
+                author = payload['sender']['login']
+            elif payload.get('commits') and len(payload['commits']) > 0:
+                author = payload['commits'][0].get('author', {}).get('name')
+            else:
+                author = 'Unknown'
+
             to_branch = payload.get('ref', '').replace('refs/heads/', '')
             commits = payload.get('commits', [])
 
             # Use commit hash as request_id
-            if commits:
+            if commits and len(commits) > 0:
                 request_id = commits[0].get('id', 'unknown')[:7]  # Short commit hash
+            elif payload.get('head_commit', {}).get('id'):
+                request_id = payload['head_commit']['id'][:7]
             else:
                 request_id = 'push_' + str(hash(str(payload)))[:7]
 
-            author = pusher
             action = 'PUSH'
             from_branch = None  # Not applicable for push
+
+            # Use GitHub timestamp if available
+            if payload.get('head_commit', {}).get('timestamp'):
+                try:
+                    github_time = datetime.fromisoformat(payload['head_commit']['timestamp'].replace('Z', '+00:00'))
+                    day = github_time.day
+                    suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
+                    timestamp = github_time.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+                except Exception as e:
+                    print(f"⚠️ Timestamp parsing error: {e}")
+                    now = datetime.now()
+                    day = now.day
+                    suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
+                    timestamp = now.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
 
             # Format: {author} pushed to {to_branch} on {timestamp}
             message = f'"{author}" pushed to "{to_branch}" on {timestamp}'
@@ -151,6 +183,15 @@ def format_webhook_message(event_type, payload):
                 request_id = str(pr.get('number', 'unknown'))
                 action = 'MERGE'
 
+                # Use GitHub timestamp if available
+                if pr.get('merged_at'):
+                    try:
+                        github_time = datetime.fromisoformat(pr['merged_at'].replace('Z', '+00:00'))
+                        timestamp = github_time.strftime("%d %B %Y - %I:%M %p UTC")
+                    except Exception as e:
+                        print(f"⚠️ Timestamp parsing error: {e}")
+                        timestamp = datetime.now().strftime("%d %B %Y - %I:%M %p UTC")
+
                 # Format: {author} merged branch {from_branch} to {to_branch} on {timestamp}
                 message = f'"{author}" merged branch "{from_branch}" to "{to_branch}" on {timestamp}'
 
@@ -161,6 +202,15 @@ def format_webhook_message(event_type, payload):
                 to_branch = pr.get('base', {}).get('ref', 'Unknown')
                 request_id = str(pr.get('number', 'unknown'))
                 action = 'PULL_REQUEST'
+
+                # Use GitHub timestamp if available
+                if pr.get('created_at'):
+                    try:
+                        github_time = datetime.fromisoformat(pr['created_at'].replace('Z', '+00:00'))
+                        timestamp = github_time.strftime("%d %B %Y - %I:%M %p UTC")
+                    except Exception as e:
+                        print(f"⚠️ Timestamp parsing error: {e}")
+                        timestamp = datetime.now().strftime("%d %B %Y - %I:%M %p UTC")
 
                 # Format: {author} submitted a pull request from {from_branch} to {to_branch} on {timestamp}
                 message = f'"{author}" submitted a pull request from "{from_branch}" to "{to_branch}" on {timestamp}'
@@ -193,17 +243,29 @@ def github_webhook():
         # Get headers
         signature = request.headers.get('X-Hub-Signature-256')
         event_type = request.headers.get('X-GitHub-Event')
-        
+
+        print(f"🔔 Received webhook: {event_type}")
+
         # Get payload
         payload_body = request.get_data()
-        
+
         # Verify signature (optional for testing)
         # if not verify_github_signature(payload_body, signature):
         #     return jsonify({'error': 'Invalid signature'}), 401
-        
+
         # Parse JSON payload
         try:
             payload = json.loads(payload_body.decode('utf-8'))
+            print(f"📦 Payload keys: {list(payload.keys())}")
+
+            # Debug: Print relevant fields for push events
+            if event_type == 'push':
+                print(f"🔍 Push debug:")
+                print(f"  - pusher: {payload.get('pusher')}")
+                print(f"  - sender: {payload.get('sender')}")
+                print(f"  - head_commit: {payload.get('head_commit', {}).get('author')}")
+                print(f"  - ref: {payload.get('ref')}")
+
         except json.JSONDecodeError:
             return jsonify({'error': 'Invalid JSON payload'}), 400
         
@@ -274,8 +336,13 @@ def get_events():
 
             events = []
             for row in cursor.fetchall():
-                # Reconstruct the message based on action type
-                timestamp_str = row['timestamp'].strftime("%d %B %Y - %I:%M %p UTC") if row['timestamp'] else 'Unknown time'
+                # Reconstruct the message based on action type with proper ordinal formatting
+                if row['timestamp']:
+                    day = row['timestamp'].day
+                    suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
+                    timestamp_str = row['timestamp'].strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+                else:
+                    timestamp_str = 'Unknown time'
 
                 if row['action'] == 'PUSH':
                     message = f'"{row["author"]}" pushed to "{row["to_branch"]}" on {timestamp_str}'
@@ -348,6 +415,53 @@ def health_check():
         'database': 'PostgreSQL',
         'timestamp': datetime.now().isoformat()
     }), 200
+
+@app.route('/admin/clear-database', methods=['POST'])
+def clear_database():
+    """Admin endpoint to clear all webhook events from database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        try:
+            cursor = conn.cursor()
+
+            # Count current records
+            cursor.execute("SELECT COUNT(*) as count FROM webhook_events")
+            count_result = cursor.fetchone()
+            current_count = count_result['count'] if count_result else 0
+
+            print(f"🗑️  Clearing {current_count} webhook events...")
+
+            # Delete all records
+            cursor.execute("DELETE FROM webhook_events")
+            deleted_count = cursor.rowcount
+
+            # Reset auto-increment sequence
+            cursor.execute("ALTER SEQUENCE webhook_events_id_seq RESTART WITH 1")
+
+            conn.commit()
+            cursor.close()
+
+            print(f"✅ Successfully deleted {deleted_count} records")
+
+            return jsonify({
+                'status': 'success',
+                'message': f'Successfully cleared {deleted_count} webhook events',
+                'deleted_count': deleted_count,
+                'timestamp': datetime.now().isoformat()
+            }), 200
+
+        except Exception as e:
+            print(f"❌ Database clear error: {e}")
+            return jsonify({'error': f'Database operation failed: {str(e)}'}), 500
+        finally:
+            return_db_connection(conn)
+
+    except Exception as e:
+        print(f"❌ Clear database error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/')
 def dashboard():
