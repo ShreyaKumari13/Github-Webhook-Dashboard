@@ -1,22 +1,19 @@
 import pymongo
 import ssl
 
-# Test with SSL fixes - using the updated connection string
-mongo_uri = "mongodb+srv://shreyakumari2713:bC9fiHqESCWqAuhF@cluster0.mkyihia.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tls=true&tlsAllowInvalidCertificates=true"
+# Test with NEW MongoDB Atlas cluster
+mongo_uri = "mongodb+srv://shreyakumari2713:QjS4kJ9qRXArjuQr@cluster0.8nehy60.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 print("Testing MongoDB Atlas connection with SSL fixes...")
 print("URI:", mongo_uri[:50] + "...")
 
 try:
-    # Test connection with SSL configuration
+    # Test connection with clean configuration (no conflicting SSL options)
     client = pymongo.MongoClient(
         mongo_uri,
         serverSelectionTimeoutMS=30000,
         connectTimeoutMS=30000,
-        socketTimeoutMS=30000,
-        tls=True,
-        tlsAllowInvalidCertificates=True,
-        tlsInsecure=True
+        socketTimeoutMS=30000
     )
 
     print("🔄 Attempting to ping MongoDB...")
