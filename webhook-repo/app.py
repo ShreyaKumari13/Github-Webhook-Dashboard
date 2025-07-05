@@ -23,10 +23,20 @@ COLLECTION_NAME = 'events'
 # GitHub webhook secret (set this in your environment)
 WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your-secret-key')
 
-# MongoDB client
-client = pymongo.MongoClient(MONGO_URI)
-db = client[DATABASE_NAME]
-collection = db[COLLECTION_NAME]
+# MongoDB client with error handling
+try:
+    client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+    # Test the connection
+    client.admin.command('ping')
+    db = client[DATABASE_NAME]
+    collection = db[COLLECTION_NAME]
+    print(f"✅ Connected to MongoDB: {DATABASE_NAME}.{COLLECTION_NAME}")
+except Exception as e:
+    print(f"❌ MongoDB connection failed: {e}")
+    print("⚠️  App will continue but data won't be saved")
+    client = None
+    db = None
+    collection = None
 
 def verify_signature(payload_body, signature_header):
     """Verify that the payload was sent from GitHub by validating SHA256 signature."""
@@ -123,10 +133,18 @@ def github_webhook():
     event_data = extract_event_data(payload, event_type)
 
     if event_data:
-        # Store in MongoDB
-        result = collection.insert_one(event_data)
-        print(f"💾 Stored event: {event_data['action']} by {event_data['author']}")
-        return jsonify({'status': 'success', 'id': str(result.inserted_id)}), 200
+        # Store in MongoDB if connected
+        if collection is not None:
+            try:
+                result = collection.insert_one(event_data)
+                print(f"💾 Stored event: {event_data['action']} by {event_data['author']}")
+                return jsonify({'status': 'success', 'id': str(result.inserted_id)}), 200
+            except Exception as e:
+                print(f"❌ Failed to store in MongoDB: {e}")
+                return jsonify({'status': 'error', 'message': 'Database error'}), 500
+        else:
+            print(f"⚠️  MongoDB not connected - event not stored: {event_data['action']} by {event_data['author']}")
+            return jsonify({'status': 'success', 'message': 'Event received but not stored (DB offline)'}), 200
 
     print(f"⚠️  Event type '{event_type}' ignored or not supported")
     return jsonify({'status': 'ignored'}), 200
@@ -134,6 +152,9 @@ def github_webhook():
 @app.route('/events', methods=['GET'])
 def get_events():
     """Get recent events from MongoDB."""
+    if collection is None:
+        return jsonify({'error': 'Database not connected'}), 500
+
     try:
         # Get the latest 50 events, sorted by timestamp descending
         events = list(collection.find().sort('timestamp', -1).limit(50))
@@ -169,5 +190,9 @@ if __name__ == '__main__':
     # Create indexes for better performance
     collection.create_index([('timestamp', -1)])
     collection.create_index('action')
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    # Use PORT environment variable for deployment platforms
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_ENV') == 'development'
+
+    app.run(debug=debug, host='0.0.0.0', port=port)
