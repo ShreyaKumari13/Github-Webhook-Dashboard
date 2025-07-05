@@ -50,7 +50,7 @@ def init_database():
         conn = connection_pool.getconn()
         cursor = conn.cursor()
         
-        # Create events table matching the MongoDB schema from assessment
+        # Create events table matching the assessment schema requirements
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS webhook_events (
                 id SERIAL PRIMARY KEY,
@@ -60,7 +60,8 @@ def init_database():
                 from_branch VARCHAR(255),
                 to_branch VARCHAR(255),
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                raw_payload JSONB
+                raw_payload JSONB,
+                event_type VARCHAR(100)
             )
         """)
         
