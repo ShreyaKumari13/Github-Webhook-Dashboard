@@ -11,17 +11,18 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Check if MongoDB is running
-if ! pgrep -x "mongod" > /dev/null; then
-    echo "⚠️  MongoDB is not running. Starting MongoDB..."
-    if command -v mongod &> /dev/null; then
-        mongod --fork --logpath /tmp/mongodb.log
-        sleep 2
-    else
-        echo "❌ MongoDB is not installed. Please install MongoDB or use Docker:"
-        echo "   docker run -d -p 27017:27017 --name mongodb mongo:7.0"
-        exit 1
-    fi
+# Check if .env file exists and has DATABASE_URL
+if [ ! -f ".env" ]; then
+    echo "❌ .env file not found. Please create .env file with DATABASE_URL"
+    echo "   Example: DATABASE_URL=postgresql://user:password@localhost:5432/webhook_db"
+    exit 1
+fi
+
+# Check if DATABASE_URL is set
+if ! grep -q "DATABASE_URL" .env; then
+    echo "❌ DATABASE_URL not found in .env file"
+    echo "   Please add: DATABASE_URL=postgresql://user:password@localhost:5432/webhook_db"
+    exit 1
 fi
 
 # Create virtual environment if it doesn't exist
@@ -38,12 +39,11 @@ source venv/bin/activate
 echo "📥 Installing dependencies..."
 pip install -r requirements.txt
 
-# Create .env file if it doesn't exist
-if [ ! -f ".env" ]; then
-    echo "⚙️  Creating environment configuration..."
-    cp .env.example .env
-    echo "✏️  Please edit .env file with your webhook secret before proceeding."
-    echo "   Default secret is 'your-secret-key' for testing."
+# Check if .env file has required variables
+echo "⚙️  Checking environment configuration..."
+if ! grep -q "GITHUB_WEBHOOK_SECRET" .env; then
+    echo "⚠️  GITHUB_WEBHOOK_SECRET not found in .env file"
+    echo "   Please add: GITHUB_WEBHOOK_SECRET=your-secret-key"
 fi
 
 # Start the Flask application
@@ -61,4 +61,4 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo "=================================="
 
-python app.py
+python app_postgres.py

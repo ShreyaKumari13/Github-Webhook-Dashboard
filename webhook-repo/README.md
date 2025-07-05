@@ -5,13 +5,13 @@ A real-time monitoring system for GitHub repository events using webhooks. Monit
 ![Webhook Monitor](https://img.shields.io/badge/Status-Active-green)
 ![Python](https://img.shields.io/badge/Python-3.7+-blue)
 ![Flask](https://img.shields.io/badge/Flask-2.0+-red)
-![MongoDB](https://img.shields.io/badge/MongoDB-4.0+-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue)
 
 ## 🌟 Features
 
 - **Real-time monitoring** of GitHub repository events
 - **Clean web interface** with 15-second auto-refresh
-- **MongoDB storage** for event persistence
+- **PostgreSQL storage** for event persistence and reliability
 - **Webhook security** with signature verification
 - **Multiple event types** support (push, pull_request, merge, etc.)
 - **Request tracking** with unique IDs
@@ -34,7 +34,7 @@ A real-time monitoring system for GitHub repository events using webhooks. Monit
 Before you begin, ensure you have the following installed:
 
 - **Python 3.7+**
-- **MongoDB** (local installation or MongoDB Atlas)
+- **PostgreSQL 12+** (local installation or cloud service)
 - **Node.js** (for localtunnel)
 - **Git**
 
@@ -83,11 +83,11 @@ npm install -g localtunnel
 
 ### 1. Environment Variables
 
-The `.env` file is already included in the project with these settings:
+Create a `.env` file in the project root with these settings:
 
 ```env
-# MongoDB Configuration
-MONGO_URI=mongodb://localhost:27017/github_webhooks
+# PostgreSQL Configuration
+DATABASE_URL=postgresql://username:password@localhost:5432/webhook_db
 
 # GitHub Webhook Secret (set this to match your GitHub webhook configuration)
 GITHUB_WEBHOOK_SECRET=gh_webhook_2024_$ecur3_K3y_#789_XyZ
@@ -97,29 +97,36 @@ FLASK_ENV=development
 FLASK_DEBUG=True
 ```
 
-**Important**: You can modify the `GITHUB_WEBHOOK_SECRET` if needed, but make sure it matches what you set in GitHub webhook settings.
+**Important**:
+- Replace `username`, `password`, and `webhook_db` with your actual PostgreSQL credentials and database name
+- You can modify the `GITHUB_WEBHOOK_SECRET` if needed, but make sure it matches what you set in GitHub webhook settings
 
-### 2. MongoDB Setup
+### 2. PostgreSQL Setup
 
-#### Option A: Local MongoDB
-1. Install MongoDB Community Edition
-2. Start MongoDB service:
+#### Option A: Local PostgreSQL
+1. Install PostgreSQL 12+ from [postgresql.org](https://www.postgresql.org/download/)
+2. Start PostgreSQL service:
    ```bash
    # Windows
-   net start MongoDB
+   net start postgresql-x64-12
 
    # macOS
-   brew services start mongodb-community
+   brew services start postgresql
 
    # Linux
-   sudo systemctl start mongod
+   sudo systemctl start postgresql
+   ```
+3. Create database and user:
+   ```sql
+   CREATE DATABASE webhook_db;
+   CREATE USER webhook_user WITH PASSWORD 'your_password';
+   GRANT ALL PRIVILEGES ON DATABASE webhook_db TO webhook_user;
    ```
 
-#### Option B: MongoDB Atlas (Cloud)
-1. Create account at [MongoDB Atlas](https://www.mongodb.com/atlas)
-2. Create a cluster
-3. Get connection string
-4. Update `MONGODB_URI` in `.env` file
+#### Option B: Cloud PostgreSQL
+1. Use services like **Heroku Postgres**, **AWS RDS**, **Google Cloud SQL**, or **DigitalOcean**
+2. Get the connection string
+3. Update `DATABASE_URL` in `.env` file
 
 ### 3. GitHub Repository Setup
 
@@ -152,25 +159,25 @@ python setup.py
 
 ### Manual Setup
 
-#### Step 1: Start MongoDB
+#### Step 1: Start PostgreSQL
 
-Ensure MongoDB is running:
+Ensure PostgreSQL is running and test connection:
 
 ```bash
-# Check MongoDB status
-python -c "from pymongo import MongoClient; print('MongoDB:', 'Connected' if MongoClient().admin.command('ping') else 'Failed')"
+# Check PostgreSQL connection
+python -c "import psycopg2; import os; from dotenv import load_dotenv; load_dotenv(); conn = psycopg2.connect(os.getenv('DATABASE_URL')); print('PostgreSQL: Connected'); conn.close()"
 ```
 
 #### Step 2: Start Flask Application
 
 ```bash
-python app.py
+python app_postgres.py
 ```
 
 You should see:
 ```
  * Running on http://127.0.0.1:5000
- * MongoDB connected successfully
+ * PostgreSQL connected successfully
  * Webhook endpoint ready at /webhook
 ```
 
@@ -253,7 +260,7 @@ Receives GitHub webhook payloads with signature verification
 ```
 GET /health
 ```
-Returns application and MongoDB connection status
+Returns application and PostgreSQL connection status
 
 ### Events API
 ```
@@ -290,13 +297,14 @@ Returns the latest 50 webhook events in JSON format
 - Restart tunnel: `npx localtunnel --port 5000`
 - Verify Flask app is running on port 5000
 
-#### 2. MongoDB Connection Issues
+#### 2. PostgreSQL Connection Issues
 
-**Symptoms**: "MongoDB connection failed" error
+**Symptoms**: "PostgreSQL connection failed" error
 **Solutions**:
-- Check MongoDB service: `sudo systemctl status mongod`
-- Verify connection string in `.env`
-- For Atlas: Check network access and credentials
+- Check PostgreSQL service: `sudo systemctl status postgresql`
+- Verify DATABASE_URL in `.env` file
+- For cloud services: Check network access and credentials
+- Ensure database exists and user has proper permissions
 
 #### 3. Signature Verification Errors
 
@@ -326,15 +334,15 @@ curl https://your-tunnel.loca.lt/health
 # Check recent events
 curl http://localhost:5000/events
 
-# Test MongoDB connection
-python -c "from pymongo import MongoClient; print(MongoClient().list_database_names())"
+# Test PostgreSQL connection
+python -c "import psycopg2; import os; from dotenv import load_dotenv; load_dotenv(); conn = psycopg2.connect(os.getenv('DATABASE_URL')); print('PostgreSQL: Connected'); conn.close()"
 ```
 
 ### Logs and Monitoring
 
-- **Flask logs**: Check terminal running `app.py`
+- **Flask logs**: Check terminal running `app_postgres.py`
 - **Tunnel logs**: Check terminal running localtunnel
-- **MongoDB logs**: Check MongoDB service logs
+- **PostgreSQL logs**: Check PostgreSQL service logs
 - **Browser console**: F12 → Console for frontend issues
 
 ## 🔒 Security Considerations
@@ -363,21 +371,30 @@ gunicorn -w 4 -b 0.0.0.0:5000 app:app
 
 ## 📊 Database Schema
 
-Events are stored in MongoDB with the following structure:
+Events are stored in PostgreSQL with the following table structure:
 
-```json
-{
-  "_id": "ObjectId",
-  "event_type": "PUSH|PULL_REQUEST|MERGE",
-  "author": "string",
-  "to_branch": "string",
-  "from_branch": "string|null",
-  "timestamp": "ISODate",
-  "repository": "string",
-  "action": "string",
-  "request_id": "string"
-}
+```sql
+CREATE TABLE webhook_events (
+    id SERIAL PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,
+    repository VARCHAR(255),
+    actor VARCHAR(255),
+    action VARCHAR(100),
+    message TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    raw_payload JSONB
+);
 ```
+
+**Column Descriptions:**
+- `id`: Auto-incrementing primary key
+- `event_type`: Type of GitHub event (PUSH, PULL_REQUEST, MERGE, etc.)
+- `repository`: Repository name (e.g., "user/repo-name")
+- `actor`: GitHub username who triggered the event
+- `action`: Specific action within the event type
+- `message`: Human-readable event description
+- `timestamp`: When the event was received
+- `raw_payload`: Complete GitHub webhook payload as JSON
 
 ## 📝 Contributing
 
@@ -396,7 +413,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Flask framework for the web application
-- MongoDB for data storage
+- PostgreSQL for reliable data storage
 - Localtunnel for webhook testing
 - GitHub for webhook functionality
 

@@ -1,21 +1,41 @@
 {
   "name": "action-repo",
   "version": "1.0.0",
-  "description": "Sample repository for testing GitHub webhooks",
+  "description": "Sample Node.js Express application for testing GitHub webhooks with real-time monitoring",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
+    "dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node app.js"
+    "lint": "echo \"Linting not configured yet\"",
+    "health": "curl http://localhost:3000/health || echo 'Server not running'",
+    "test-api": "npm run health && curl http://localhost:3000/api/users"
   },
   "keywords": [
     "github",
     "webhooks",
     "testing",
-    "demo"
+    "demo",
+    "express",
+    "nodejs",
+    "api",
+    "monitoring",
+    "real-time"
   ],
   "author": "Developer",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/action-repo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/action-repo/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/action-repo#readme",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
     "express": "^4.18.2"
   },

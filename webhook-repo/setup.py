@@ -18,17 +18,29 @@ def check_python_version():
     print(f"✅ Python {version.major}.{version.minor} detected")
     return True
 
-def check_mongodb():
-    """Check if MongoDB is accessible"""
+def check_postgresql():
+    """Check if PostgreSQL is accessible"""
     try:
-        from pymongo import MongoClient
-        client = MongoClient('mongodb://localhost:27017/', serverSelectionTimeoutMS=2000)
-        client.admin.command('ping')
-        print("✅ MongoDB is running and accessible")
+        import psycopg2
+        from dotenv import load_dotenv
+        load_dotenv()
+
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            print("❌ DATABASE_URL not found in .env file")
+            print("   Please set DATABASE_URL in your .env file")
+            return False
+
+        conn = psycopg2.connect(database_url)
+        conn.close()
+        print("✅ PostgreSQL is accessible")
         return True
+    except ImportError:
+        print("❌ psycopg2 not installed. Run: pip install psycopg2-binary")
+        return False
     except Exception as e:
-        print(f"❌ MongoDB connection failed: {e}")
-        print("   Please start MongoDB or check your connection")
+        print(f"❌ PostgreSQL connection failed: {e}")
+        print("   Please check your DATABASE_URL in .env file")
         return False
 
 def check_node():
@@ -83,7 +95,7 @@ def main():
     # Check prerequisites
     checks = [
         ("Python 3.7+", check_python_version),
-        ("MongoDB", check_mongodb),
+        ("PostgreSQL", check_postgresql),
         ("Node.js", check_node),
         (".env file", check_env_file)
     ]
@@ -109,8 +121,8 @@ def main():
     
     print("\n🎉 Setup completed successfully!")
     print("\n🚀 Next steps:")
-    print("1. Start MongoDB (if not already running)")
-    print("2. Run: python app.py")
+    print("1. Ensure PostgreSQL is running and DATABASE_URL is set in .env")
+    print("2. Run: python app_postgres.py")
     print("3. In another terminal: npx localtunnel --port 5000")
     print("4. Configure GitHub webhook with the tunnel URL")
     print("5. Visit http://localhost:5000 to see the dashboard")

@@ -1,10 +1,18 @@
 const express = require('express');
+const { formatDate } = require('./src/utils');
 const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
 app.use(express.static('public'));
+
+// Request logging middleware
+app.use((req, res, next) => {
+    const timestamp = formatDate(new Date());
+    console.log(`[${timestamp}] ${req.method} ${req.path} - ${req.ip}`);
+    next();
+});
 
 // Sample data
 const users = [
@@ -17,11 +25,26 @@ const users = [
 app.get('/', (req, res) => {
     res.json({
         message: 'Welcome to Action Repo API',
+        description: 'Sample Express.js application for GitHub webhook testing',
         version: '1.0.0',
+        timestamp: new Date().toISOString(),
         endpoints: {
             users: '/api/users',
-            health: '/health'
-        }
+            health: '/health',
+            version: '/version'
+        },
+        documentation: 'See README.md for setup and usage instructions'
+    });
+});
+
+app.get('/version', (req, res) => {
+    res.json({
+        name: 'action-repo',
+        version: '1.0.0',
+        description: 'Sample Express.js application for GitHub webhook testing',
+        node_version: process.version,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
     });
 });
 

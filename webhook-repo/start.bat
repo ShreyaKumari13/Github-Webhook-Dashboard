@@ -26,12 +26,21 @@ REM Install dependencies
 echo 📥 Installing dependencies...
 pip install -r requirements.txt
 
-REM Create .env file if it doesn't exist
+REM Check if .env file exists
 if not exist ".env" (
-    echo ⚙️  Creating environment configuration...
-    copy .env.example .env
-    echo ✏️  Please edit .env file with your webhook secret before proceeding.
-    echo    Default secret is 'your-secret-key' for testing.
+    echo ❌ .env file not found. Please create .env file with DATABASE_URL
+    echo    Example: DATABASE_URL=postgresql://user:password@localhost:5432/webhook_db
+    pause
+    exit /b 1
+)
+
+REM Check if DATABASE_URL is set
+findstr /C:"DATABASE_URL" .env >nul 2>&1
+if errorlevel 1 (
+    echo ❌ DATABASE_URL not found in .env file
+    echo    Please add: DATABASE_URL=postgresql://user:password@localhost:5432/webhook_db
+    pause
+    exit /b 1
 )
 
 REM Start the Flask application
@@ -49,6 +58,6 @@ echo.
 echo Press Ctrl+C to stop the server
 echo ==================================
 
-python app.py
+python app_postgres.py
 
 pause

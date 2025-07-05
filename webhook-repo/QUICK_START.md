@@ -5,7 +5,7 @@ Get your GitHub Webhook Monitor running in **5 minutes**!
 ## 🎯 Prerequisites
 
 - Python 3.7+
-- MongoDB running locally
+- PostgreSQL running locally
 - Node.js (for tunneling)
 
 ## 🚀 Super Quick Setup
@@ -60,7 +60,7 @@ Copy the tunnel URL (e.g., `https://your-name-here.loca.lt`)
 
 **No events showing?**
 - Check Flask is running: `curl http://localhost:5000/health`
-- Check MongoDB: `python -c "from pymongo import MongoClient; MongoClient().admin.command('ping')"`
+- Check PostgreSQL: `python -c "import psycopg2; import os; from dotenv import load_dotenv; load_dotenv(); conn = psycopg2.connect(os.getenv('DATABASE_URL')); print('PostgreSQL: Connected'); conn.close()"`
 
 **Need help?** See the full [README.md](README.md) for detailed troubleshooting.
 
