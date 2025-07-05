@@ -11,7 +11,7 @@ import hashlib
 import hmac
 import time
 from datetime import datetime
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -37,8 +37,7 @@ def init_database():
     
     try:
         print(f"🔄 Connecting to PostgreSQL...")
-        print(f"📍 DATABASE_URL exists: {bool(DATABASE_URL)}")
-        
+
         # Create connection pool
         connection_pool = psycopg2.pool.SimpleConnectionPool(
             1, 20,  # min and max connections
@@ -118,8 +117,6 @@ def format_timestamp_with_ordinal(dt):
 def format_webhook_message(event_type, payload):
     """Format webhook payload according to assessment requirements."""
     try:
-        print(f"🔍 Formatting {event_type} event")
-        print(f"🔍 Payload keys: {list(payload.keys())}")
         # Generate request_id using commit hash for push, PR ID for pull requests
         request_id = None
         author = None
@@ -174,8 +171,7 @@ def format_webhook_message(event_type, payload):
                     else:
                         github_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
                     timestamp = format_timestamp_with_ordinal(github_time)
-                except Exception as e:
-                    print(f"⚠️ Timestamp parsing error: {e}")
+                except Exception:
                     timestamp = format_timestamp_with_ordinal(datetime.now())
             else:
                 timestamp = format_timestamp_with_ordinal(datetime.now())
@@ -202,8 +198,7 @@ def format_webhook_message(event_type, payload):
                     try:
                         github_time = datetime.fromisoformat(pr['merged_at'].replace('Z', '+00:00'))
                         timestamp = format_timestamp_with_ordinal(github_time)
-                    except Exception as e:
-                        print(f"⚠️ Timestamp parsing error: {e}")
+                    except Exception:
                         timestamp = format_timestamp_with_ordinal(datetime.now())
                 else:
                     timestamp = format_timestamp_with_ordinal(datetime.now())
@@ -224,8 +219,7 @@ def format_webhook_message(event_type, payload):
                     try:
                         github_time = datetime.fromisoformat(pr['created_at'].replace('Z', '+00:00'))
                         timestamp = format_timestamp_with_ordinal(github_time)
-                    except Exception as e:
-                        print(f"⚠️ Timestamp parsing error: {e}")
+                    except Exception:
                         timestamp = format_timestamp_with_ordinal(datetime.now())
                 else:
                     timestamp = format_timestamp_with_ordinal(datetime.now())
@@ -277,16 +271,6 @@ def github_webhook():
         # Parse JSON payload
         try:
             payload = json.loads(payload_body.decode('utf-8'))
-            print(f"📦 Payload keys: {list(payload.keys())}")
-
-            # Debug: Print relevant fields for push events
-            if event_type == 'push':
-                print(f"🔍 Push debug:")
-                print(f"  - pusher: {payload.get('pusher')}")
-                print(f"  - sender: {payload.get('sender')}")
-                print(f"  - head_commit: {payload.get('head_commit', {}).get('author')}")
-                print(f"  - ref: {payload.get('ref')}")
-
         except json.JSONDecodeError:
             return jsonify({'error': 'Invalid JSON payload'}), 400
 
@@ -306,9 +290,6 @@ def github_webhook():
         if conn:
             try:
                 cursor = conn.cursor()
-
-                # Debug: Print what we're trying to insert
-                print(f"🔍 Inserting: {formatted}")
 
                 cursor.execute("""
                     INSERT INTO webhook_events
@@ -331,7 +312,6 @@ def github_webhook():
             except Exception as e:
                 db_error = str(e)
                 print(f"❌ Database insert failed: {e}")
-                print(f"❌ Formatted data: {formatted}")
                 # Try to rollback
                 try:
                     conn.rollback()
@@ -458,209 +438,12 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     }), 200
 
-@app.route('/admin/test-insert', methods=['POST'])
-def test_insert():
-    """Admin endpoint to test database insertion directly."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return jsonify({'error': 'Database connection failed'}), 500
 
-        try:
-            cursor = conn.cursor()
-
-            # Test data
-            test_data = {
-                'request_id': 'test_' + str(int(time.time())),
-                'author': 'TestUser',
-                'action': 'PUSH',
-                'from_branch': None,
-                'to_branch': 'main',
-                'timestamp': datetime.now(),
-                'raw_payload': '{"test": true}'
-            }
-
-            print(f"🧪 Testing database insert with: {test_data}")
-
-            cursor.execute("""
-                INSERT INTO webhook_events
-                (request_id, author, action, from_branch, to_branch, timestamp, raw_payload, event_type)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                test_data['request_id'],
-                test_data['author'],
-                test_data['action'],
-                test_data['from_branch'],
-                test_data['to_branch'],
-                test_data['timestamp'],
-                test_data['raw_payload'],
-                'push'  # Default event type for test
-            ))
-
-            conn.commit()
-            cursor.close()
-
-            print(f"✅ Successfully inserted test record")
-
-            return jsonify({
-                'status': 'success',
-                'message': 'Test record inserted successfully',
-                'test_data': test_data,
-                'timestamp': datetime.now().isoformat()
-            }), 200
-
-        except Exception as e:
-            print(f"❌ Database insert test error: {e}")
-            return jsonify({'error': f'Database operation failed: {str(e)}'}), 500
-        finally:
-            return_db_connection(conn)
-
-    except Exception as e:
-        print(f"❌ Test insert error: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/admin/clear-database', methods=['POST'])
-def clear_database():
-    """Admin endpoint to clear all webhook events from database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return jsonify({'error': 'Database connection failed'}), 500
-
-        try:
-            cursor = conn.cursor()
-
-            # Count current records
-            cursor.execute("SELECT COUNT(*) as count FROM webhook_events")
-            count_result = cursor.fetchone()
-            current_count = count_result['count'] if count_result else 0
-
-            print(f"🗑️  Clearing {current_count} webhook events...")
-
-            # Delete all records
-            cursor.execute("DELETE FROM webhook_events")
-            deleted_count = cursor.rowcount
-
-            # Reset auto-increment sequence
-            cursor.execute("ALTER SEQUENCE webhook_events_id_seq RESTART WITH 1")
-
-            conn.commit()
-            cursor.close()
-
-            print(f"✅ Successfully deleted {deleted_count} records")
-
-            return jsonify({
-                'status': 'success',
-                'message': f'Successfully cleared {deleted_count} webhook events',
-                'deleted_count': deleted_count,
-                'timestamp': datetime.now().isoformat()
-            }), 200
-
-        except Exception as e:
-            print(f"❌ Database clear error: {e}")
-            return jsonify({'error': f'Database operation failed: {str(e)}'}), 500
-        finally:
-            return_db_connection(conn)
-
-    except Exception as e:
-        print(f"❌ Clear database error: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/')
 def dashboard():
     """Main dashboard page."""
-    html_template = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>GitHub Webhook Dashboard</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-            .container { max-width: 1200px; margin: 0 auto; }
-            .header { background: #24292e; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-            .status { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745; }
-            .events { background: white; border-radius: 8px; padding: 20px; }
-            .event { border-bottom: 1px solid #eee; padding: 15px 0; }
-            .event:last-child { border-bottom: none; }
-            .event-message { font-weight: bold; margin-bottom: 5px; }
-            .event-details { color: #666; font-size: 0.9em; }
-            .loading { text-align: center; padding: 20px; color: #666; }
-            .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin: 10px 0; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🚀 GitHub Webhook Dashboard</h1>
-                <p>Assessment Task - Real-time GitHub webhook events (Push, Pull Request, Merge)</p>
-            </div>
-
-            <div class="status" id="status">
-                <strong>Database Status:</strong> <span id="db-status">Checking...</span>
-            </div>
-
-            <div class="events">
-                <h2>Latest Repository Changes</h2>
-                <p><em>Polling every 15 seconds for new events...</em></p>
-                <div id="events-list" class="loading">Loading events...</div>
-            </div>
-        </div>
-
-        <script>
-            function updateStatus() {
-                fetch('/db-status')
-                    .then(response => response.json())
-                    .then(data => {
-                        const statusEl = document.getElementById('db-status');
-                        if (data.connected) {
-                            statusEl.innerHTML = `✅ PostgreSQL Connected (${data.document_count} events stored)`;
-                        } else {
-                            statusEl.innerHTML = `❌ Disconnected: ${data.error}`;
-                        }
-                    })
-                    .catch(error => {
-                        document.getElementById('db-status').innerHTML = '❌ Error checking status';
-                    });
-            }
-
-            function updateEvents() {
-                fetch('/events')
-                    .then(response => response.json())
-                    .then(events => {
-                        const eventsEl = document.getElementById('events-list');
-                        if (events.length === 0) {
-                            eventsEl.innerHTML = '<p class="loading">No events yet. Send a webhook to see events here!</p>';
-                            return;
-                        }
-
-                        eventsEl.innerHTML = events.map(event => `
-                            <div class="event">
-                                <div class="event-message">${event.message}</div>
-                                <div class="event-details">
-                                    Action: ${event.action} • Request ID: ${event.request_id}
-                                </div>
-                            </div>
-                        `).join('');
-                    })
-                    .catch(error => {
-                        document.getElementById('events-list').innerHTML = '<div class="error">Error loading events</div>';
-                    });
-            }
-
-            // Update immediately and then every 15 seconds
-            updateStatus();
-            updateEvents();
-            setInterval(() => {
-                updateStatus();
-                updateEvents();
-            }, 15000);
-        </script>
-    </body>
-    </html>
-    """
-    return render_template_string(html_template)
+    return render_template('index.html')
 
 # Initialize database on startup
 init_database()
