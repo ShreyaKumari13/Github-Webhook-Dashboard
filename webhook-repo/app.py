@@ -32,7 +32,10 @@ try:
         connectTimeoutMS=30000,
         socketTimeoutMS=30000,
         retryWrites=True,
-        w='majority'
+        w='majority',
+        tls=True,
+        tlsAllowInvalidCertificates=True,
+        tlsInsecure=True
     )
     # Test the connection
     client.admin.command('ping')
