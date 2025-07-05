@@ -23,9 +23,17 @@ COLLECTION_NAME = 'events'
 # GitHub webhook secret (set this in your environment)
 WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your-secret-key')
 
-# MongoDB client with error handling
+# MongoDB client with error handling and SSL configuration
 try:
-    client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+    # Try with SSL configuration for better compatibility
+    client = pymongo.MongoClient(
+        MONGO_URI,
+        serverSelectionTimeoutMS=30000,
+        connectTimeoutMS=30000,
+        socketTimeoutMS=30000,
+        retryWrites=True,
+        w='majority'
+    )
     # Test the connection
     client.admin.command('ping')
     db = client[DATABASE_NAME]
@@ -187,9 +195,16 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    # Create indexes for better performance
-    collection.create_index([('timestamp', -1)])
-    collection.create_index('action')
+    # Create indexes for better performance (only if MongoDB is connected)
+    if collection is not None:
+        try:
+            collection.create_index([('timestamp', -1)])
+            collection.create_index('action')
+            print("✅ Database indexes created successfully")
+        except Exception as e:
+            print(f"⚠️  Could not create indexes: {e}")
+    else:
+        print("⚠️  Skipping index creation - MongoDB not connected")
 
     # Use PORT environment variable for deployment platforms
     port = int(os.getenv('PORT', 5000))
