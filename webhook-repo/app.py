@@ -164,7 +164,8 @@ def github_webhook():
 def get_events():
     """Get recent events from MongoDB."""
     if collection is None:
-        return jsonify({'error': 'Database not connected'}), 500
+        # Return empty array instead of error so UI doesn't break
+        return jsonify([]), 200
 
     try:
         # Get the latest 50 events, sorted by timestamp descending
@@ -191,11 +192,31 @@ def index():
 def health():
     """Health check endpoint."""
     try:
-        # Test MongoDB connection
-        client.admin.command('ping')
-        return jsonify({'status': 'healthy', 'mongodb': 'connected'}), 200
+        if client is not None:
+            # Test MongoDB connection
+            client.admin.command('ping')
+            return jsonify({'status': 'healthy', 'mongodb': 'connected'}), 200
+        else:
+            return jsonify({'status': 'healthy', 'mongodb': 'disconnected'}), 200
     except Exception as e:
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+
+@app.route('/db-status')
+def db_status():
+    """Database connection status."""
+    if collection is not None:
+        try:
+            count = collection.count_documents({})
+            return jsonify({
+                'connected': True,
+                'database': DATABASE_NAME,
+                'collection': COLLECTION_NAME,
+                'document_count': count
+            }), 200
+        except Exception as e:
+            return jsonify({'connected': False, 'error': str(e)}), 200
+    else:
+        return jsonify({'connected': False, 'error': 'Database not initialized'}), 200
 
 if __name__ == '__main__':
     # Create indexes for better performance (only if MongoDB is connected)
