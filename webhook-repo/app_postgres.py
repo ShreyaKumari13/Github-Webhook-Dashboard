@@ -271,16 +271,6 @@ def github_webhook():
         # Parse JSON payload
         try:
             payload = json.loads(payload_body.decode('utf-8'))
-            print(f"📦 Payload keys: {list(payload.keys())}")
-
-            # Debug: Print relevant fields for push events
-            if event_type == 'push':
-                print(f"🔍 Push debug:")
-                print(f"  - pusher: {payload.get('pusher')}")
-                print(f"  - sender: {payload.get('sender')}")
-                print(f"  - head_commit: {payload.get('head_commit', {}).get('author')}")
-                print(f"  - ref: {payload.get('ref')}")
-
         except json.JSONDecodeError:
             return jsonify({'error': 'Invalid JSON payload'}), 400
 
@@ -300,8 +290,6 @@ def github_webhook():
         if conn:
             try:
                 cursor = conn.cursor()
-
-
 
                 cursor.execute("""
                     INSERT INTO webhook_events
