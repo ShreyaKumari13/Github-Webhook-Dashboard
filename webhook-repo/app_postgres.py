@@ -110,6 +110,8 @@ def verify_github_signature(payload_body, signature_header):
 def format_webhook_message(event_type, payload):
     """Format webhook payload according to assessment requirements."""
     try:
+        print(f"🔍 Formatting {event_type} event")
+        print(f"🔍 Payload keys: {list(payload.keys())}")
         # Generate request_id using commit hash for push, PR ID for pull requests
         request_id = None
         author = None
@@ -280,11 +282,15 @@ def github_webhook():
                 'message': 'Event not processed (not relevant for dashboard)'
             }), 200
 
-        # Store in database
+        # Store in database with better error handling
         conn = get_db_connection()
         if conn:
             try:
                 cursor = conn.cursor()
+
+                # Debug: Print what we're trying to insert
+                print(f"🔍 Inserting: {formatted}")
+
                 cursor.execute("""
                     INSERT INTO webhook_events
                     (request_id, author, action, from_branch, to_branch, timestamp, raw_payload)
@@ -303,8 +309,16 @@ def github_webhook():
                 print(f"✅ Stored {formatted['action']} event by {formatted['author']}")
             except Exception as e:
                 print(f"❌ Database insert failed: {e}")
+                print(f"❌ Formatted data: {formatted}")
+                # Try to rollback
+                try:
+                    conn.rollback()
+                except:
+                    pass
             finally:
                 return_db_connection(conn)
+        else:
+            print("❌ No database connection available")
         
         return jsonify({
             'status': 'success',
