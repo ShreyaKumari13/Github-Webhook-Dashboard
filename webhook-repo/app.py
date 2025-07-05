@@ -87,17 +87,12 @@ def connect_to_mongodb():
     except Exception as e:
         print(f"❌ Strategy 3 failed: {e}")
 
-    # Strategy 4: Try with different SSL approach
+    # Strategy 4: Try with no SSL options at all
     try:
-        print("🔄 Strategy 4: Alternative SSL...")
-        # Remove SSL parameters from URI and add them as client options
+        print("🔄 Strategy 4: No SSL options...")
+        # Use clean URI without any SSL parameters
         base_uri = MONGO_URI.split('?')[0] + "?retryWrites=true&w=majority&appName=Cluster0"
-        client = pymongo.MongoClient(
-            base_uri,
-            serverSelectionTimeoutMS=30000,
-            ssl=True,
-            ssl_cert_reqs=None
-        )
+        client = pymongo.MongoClient(base_uri, serverSelectionTimeoutMS=30000)
         client.admin.command('ping')
         db = client[DATABASE_NAME]
         collection = db[COLLECTION_NAME]
