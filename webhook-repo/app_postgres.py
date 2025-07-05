@@ -311,6 +311,101 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     }), 200
 
+@app.route('/')
+def dashboard():
+    """Main dashboard page."""
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>GitHub Webhook Dashboard</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .header { background: #24292e; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+            .status { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745; }
+            .events { background: white; border-radius: 8px; padding: 20px; }
+            .event { border-bottom: 1px solid #eee; padding: 15px 0; }
+            .event:last-child { border-bottom: none; }
+            .event-message { font-weight: bold; margin-bottom: 5px; }
+            .event-details { color: #666; font-size: 0.9em; }
+            .loading { text-align: center; padding: 20px; color: #666; }
+            .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🚀 GitHub Webhook Dashboard</h1>
+                <p>Real-time GitHub webhook events with PostgreSQL</p>
+            </div>
+
+            <div class="status" id="status">
+                <strong>Database Status:</strong> <span id="db-status">Checking...</span>
+            </div>
+
+            <div class="events">
+                <h2>Recent Events</h2>
+                <div id="events-list" class="loading">Loading events...</div>
+            </div>
+        </div>
+
+        <script>
+            function updateStatus() {
+                fetch('/db-status')
+                    .then(response => response.json())
+                    .then(data => {
+                        const statusEl = document.getElementById('db-status');
+                        if (data.connected) {
+                            statusEl.innerHTML = `✅ PostgreSQL Connected (${data.document_count} events stored)`;
+                        } else {
+                            statusEl.innerHTML = `❌ Disconnected: ${data.error}`;
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('db-status').innerHTML = '❌ Error checking status';
+                    });
+            }
+
+            function updateEvents() {
+                fetch('/events')
+                    .then(response => response.json())
+                    .then(events => {
+                        const eventsEl = document.getElementById('events-list');
+                        if (events.length === 0) {
+                            eventsEl.innerHTML = '<p class="loading">No events yet. Send a webhook to see events here!</p>';
+                            return;
+                        }
+
+                        eventsEl.innerHTML = events.map(event => `
+                            <div class="event">
+                                <div class="event-message">${event.message}</div>
+                                <div class="event-details">
+                                    ${event.actor} • ${event.action} • ${event.timestamp}
+                                </div>
+                            </div>
+                        `).join('');
+                    })
+                    .catch(error => {
+                        document.getElementById('events-list').innerHTML = '<div class="error">Error loading events</div>';
+                    });
+            }
+
+            // Update immediately and then every 15 seconds
+            updateStatus();
+            updateEvents();
+            setInterval(() => {
+                updateStatus();
+                updateEvents();
+            }, 15000);
+        </script>
+    </body>
+    </html>
+    """
+    return render_template_string(html_template)
+
 # Initialize database on startup
 init_database()
 
