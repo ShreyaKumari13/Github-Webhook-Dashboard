@@ -154,10 +154,20 @@ def format_webhook_message(event_type, payload):
             action = 'PUSH'
             from_branch = None  # Not applicable for push
 
-            # Use GitHub timestamp if available
+            # Use GitHub timestamp if available - try head_commit first, then commits array
+            timestamp_str = None
             if payload.get('head_commit', {}).get('timestamp'):
+                timestamp_str = payload['head_commit']['timestamp']
+            elif commits and len(commits) > 0 and commits[0].get('timestamp'):
+                timestamp_str = commits[0]['timestamp']
+
+            if timestamp_str:
                 try:
-                    github_time = datetime.fromisoformat(payload['head_commit']['timestamp'].replace('Z', '+00:00'))
+                    # Handle timezone format like "2025-07-06T01:08:07+05:30"
+                    if '+' in timestamp_str and not timestamp_str.endswith('Z'):
+                        github_time = datetime.fromisoformat(timestamp_str)
+                    else:
+                        github_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
                     day = github_time.day
                     suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
                     timestamp = github_time.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
@@ -167,6 +177,11 @@ def format_webhook_message(event_type, payload):
                     day = now.day
                     suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
                     timestamp = now.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+            else:
+                now = datetime.now()
+                day = now.day
+                suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
+                timestamp = now.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
 
             # Format: {author} pushed to {to_branch} on {timestamp}
             message = f'"{author}" pushed to "{to_branch}" on {timestamp}'
