@@ -9,6 +9,10 @@ A Flask application that receives GitHub webhooks and displays them in a web das
 ![Deployment](https://img.shields.io/badge/Status-Live%20on%20Render-brightgreen)
 [![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-github--webhook--dashboard.onrender.com-blue)](https://github-webhook-dashboard.onrender.com/)
 
+## 🛠️ **Technologies Used**
+
+For this GitHub webhook assessment, I used **Python Flask** as the main web framework to handle webhook endpoints and serve the dashboard. **PostgreSQL** was chosen as the database instead of MongoDB because it offers seamless integration with Render deployment platform, making production deployment much easier. The frontend uses **HTML5, CSS3, and vanilla JavaScript** for a clean, minimal UI with 15-second polling intervals. The project follows a **two-repository architecture** with action-repo (Node.js Express) for triggering webhooks and webhook-repo (Flask) containing the main application and UI. **Git/GitHub** handles version control, while **Render** provides reliable cloud hosting with PostgreSQL support.
+
 ## 🎯 Assessment Requirements
 
 This project implements the GitHub webhook assessment with the following specifications:
