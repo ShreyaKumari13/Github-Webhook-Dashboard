@@ -97,7 +97,7 @@ def verify_github_signature(payload_body, signature_header):
     """Verify GitHub webhook signature."""
     if not signature_header:
         return False
-    
+
     try:
         hash_object = hmac.new(
             GITHUB_WEBHOOK_SECRET.encode('utf-8'),
@@ -108,6 +108,12 @@ def verify_github_signature(payload_body, signature_header):
         return hmac.compare_digest(expected_signature, signature_header)
     except Exception:
         return False
+
+def format_timestamp_with_ordinal(dt):
+    """Format datetime with ordinal suffix (1st, 2nd, 3rd, 4th, etc.)."""
+    day = dt.day
+    suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
+    return dt.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
 
 def format_webhook_message(event_type, payload):
     """Format webhook payload according to assessment requirements."""
@@ -121,10 +127,7 @@ def format_webhook_message(event_type, payload):
         from_branch = None
         to_branch = None
         # Default timestamp with proper ordinal formatting
-        now = datetime.now()
-        day = now.day
-        suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
-        timestamp = now.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+        timestamp = format_timestamp_with_ordinal(datetime.now())
 
         if event_type == 'push':
             # Extract push information - try multiple fields for author
@@ -170,20 +173,12 @@ def format_webhook_message(event_type, payload):
                         github_time = datetime.fromisoformat(timestamp_str)
                     else:
                         github_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                    day = github_time.day
-                    suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
-                    timestamp = github_time.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+                    timestamp = format_timestamp_with_ordinal(github_time)
                 except Exception as e:
                     print(f"⚠️ Timestamp parsing error: {e}")
-                    now = datetime.now()
-                    day = now.day
-                    suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
-                    timestamp = now.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+                    timestamp = format_timestamp_with_ordinal(datetime.now())
             else:
-                now = datetime.now()
-                day = now.day
-                suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
-                timestamp = now.strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+                timestamp = format_timestamp_with_ordinal(datetime.now())
 
             # Format: {author} pushed to {to_branch} on {timestamp}
             message = f'"{author}" pushed to "{to_branch}" on {timestamp}'
@@ -206,10 +201,12 @@ def format_webhook_message(event_type, payload):
                 if pr.get('merged_at'):
                     try:
                         github_time = datetime.fromisoformat(pr['merged_at'].replace('Z', '+00:00'))
-                        timestamp = github_time.strftime("%d %B %Y - %I:%M %p UTC")
+                        timestamp = format_timestamp_with_ordinal(github_time)
                     except Exception as e:
                         print(f"⚠️ Timestamp parsing error: {e}")
-                        timestamp = datetime.now().strftime("%d %B %Y - %I:%M %p UTC")
+                        timestamp = format_timestamp_with_ordinal(datetime.now())
+                else:
+                    timestamp = format_timestamp_with_ordinal(datetime.now())
 
                 # Format: {author} merged branch {from_branch} to {to_branch} on {timestamp}
                 message = f'"{author}" merged branch "{from_branch}" to "{to_branch}" on {timestamp}'
@@ -226,10 +223,12 @@ def format_webhook_message(event_type, payload):
                 if pr.get('created_at'):
                     try:
                         github_time = datetime.fromisoformat(pr['created_at'].replace('Z', '+00:00'))
-                        timestamp = github_time.strftime("%d %B %Y - %I:%M %p UTC")
+                        timestamp = format_timestamp_with_ordinal(github_time)
                     except Exception as e:
                         print(f"⚠️ Timestamp parsing error: {e}")
-                        timestamp = datetime.now().strftime("%d %B %Y - %I:%M %p UTC")
+                        timestamp = format_timestamp_with_ordinal(datetime.now())
+                else:
+                    timestamp = format_timestamp_with_ordinal(datetime.now())
 
                 # Format: {author} submitted a pull request from {from_branch} to {to_branch} on {timestamp}
                 message = f'"{author}" submitted a pull request from "{from_branch}" to "{to_branch}" on {timestamp}'
@@ -383,9 +382,7 @@ def get_events():
             for row in cursor.fetchall():
                 # Reconstruct the message based on action type with proper ordinal formatting
                 if row['timestamp']:
-                    day = row['timestamp'].day
-                    suffix = 'st' if day in [1, 21, 31] else 'nd' if day in [2, 22] else 'rd' if day in [3, 23] else 'th'
-                    timestamp_str = row['timestamp'].strftime(f"{day}{suffix} %B %Y - %I:%M %p UTC")
+                    timestamp_str = format_timestamp_with_ordinal(row['timestamp'])
                 else:
                     timestamp_str = 'Unknown time'
 
