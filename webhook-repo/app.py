@@ -36,7 +36,7 @@ def connect_to_mongodb():
         print("❌ No valid MONGO_URI found in environment")
         return False
 
-    # Strategy 1: Try with SSL configuration
+    # Strategy 1: Try with SSL configuration (fixed conflicting options)
     try:
         print("🔄 Strategy 1: SSL configuration...")
         client = pymongo.MongoClient(
@@ -47,8 +47,7 @@ def connect_to_mongodb():
             retryWrites=True,
             w='majority',
             tls=True,
-            tlsAllowInvalidCertificates=True,
-            tlsInsecure=True
+            tlsAllowInvalidCertificates=True
         )
         # Test the connection
         client.admin.command('ping')
@@ -59,10 +58,15 @@ def connect_to_mongodb():
     except Exception as e:
         print(f"❌ Strategy 1 failed: {e}")
 
-    # Strategy 2: Try with basic connection
+    # Strategy 2: Try with tlsInsecure only
     try:
-        print("🔄 Strategy 2: Basic connection...")
-        client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+        print("🔄 Strategy 2: tlsInsecure only...")
+        client = pymongo.MongoClient(
+            MONGO_URI,
+            serverSelectionTimeoutMS=30000,
+            tls=True,
+            tlsInsecure=True
+        )
         client.admin.command('ping')
         db = client[DATABASE_NAME]
         collection = db[COLLECTION_NAME]
@@ -70,6 +74,37 @@ def connect_to_mongodb():
         return True
     except Exception as e:
         print(f"❌ Strategy 2 failed: {e}")
+
+    # Strategy 3: Try with basic connection
+    try:
+        print("🔄 Strategy 3: Basic connection...")
+        client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+        client.admin.command('ping')
+        db = client[DATABASE_NAME]
+        collection = db[COLLECTION_NAME]
+        print(f"✅ Connected to MongoDB: {DATABASE_NAME}.{COLLECTION_NAME}")
+        return True
+    except Exception as e:
+        print(f"❌ Strategy 3 failed: {e}")
+
+    # Strategy 4: Try with different SSL approach
+    try:
+        print("🔄 Strategy 4: Alternative SSL...")
+        # Remove SSL parameters from URI and add them as client options
+        base_uri = MONGO_URI.split('?')[0] + "?retryWrites=true&w=majority&appName=Cluster0"
+        client = pymongo.MongoClient(
+            base_uri,
+            serverSelectionTimeoutMS=30000,
+            ssl=True,
+            ssl_cert_reqs=None
+        )
+        client.admin.command('ping')
+        db = client[DATABASE_NAME]
+        collection = db[COLLECTION_NAME]
+        print(f"✅ Connected to MongoDB: {DATABASE_NAME}.{COLLECTION_NAME}")
+        return True
+    except Exception as e:
+        print(f"❌ Strategy 4 failed: {e}")
 
     # All strategies failed
     print("❌ All connection strategies failed")
