@@ -23,31 +23,63 @@ COLLECTION_NAME = 'events'
 # GitHub webhook secret (set this in your environment)
 WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your-secret-key')
 
-# MongoDB client with error handling and SSL configuration
-try:
-    # Try with SSL configuration for better compatibility
-    client = pymongo.MongoClient(
-        MONGO_URI,
-        serverSelectionTimeoutMS=30000,
-        connectTimeoutMS=30000,
-        socketTimeoutMS=30000,
-        retryWrites=True,
-        w='majority',
-        tls=True,
-        tlsAllowInvalidCertificates=True,
-        tlsInsecure=True
-    )
-    # Test the connection
-    client.admin.command('ping')
-    db = client[DATABASE_NAME]
-    collection = db[COLLECTION_NAME]
-    print(f"✅ Connected to MongoDB: {DATABASE_NAME}.{COLLECTION_NAME}")
-except Exception as e:
-    print(f"❌ MongoDB connection failed: {e}")
-    print("⚠️  App will continue but data won't be saved")
+# MongoDB connection function
+def connect_to_mongodb():
+    """Try to connect to MongoDB with multiple strategies."""
+    global client, db, collection
+
+    print(f"🔄 Attempting MongoDB connection...")
+    print(f"📍 MONGO_URI exists: {bool(MONGO_URI)}")
+    print(f"📍 MONGO_URI length: {len(MONGO_URI) if MONGO_URI else 0}")
+
+    if not MONGO_URI or MONGO_URI == 'mongodb://localhost:27017/':
+        print("❌ No valid MONGO_URI found in environment")
+        return False
+
+    # Strategy 1: Try with SSL configuration
+    try:
+        print("🔄 Strategy 1: SSL configuration...")
+        client = pymongo.MongoClient(
+            MONGO_URI,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            retryWrites=True,
+            w='majority',
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            tlsInsecure=True
+        )
+        # Test the connection
+        client.admin.command('ping')
+        db = client[DATABASE_NAME]
+        collection = db[COLLECTION_NAME]
+        print(f"✅ Connected to MongoDB: {DATABASE_NAME}.{COLLECTION_NAME}")
+        return True
+    except Exception as e:
+        print(f"❌ Strategy 1 failed: {e}")
+
+    # Strategy 2: Try with basic connection
+    try:
+        print("🔄 Strategy 2: Basic connection...")
+        client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+        client.admin.command('ping')
+        db = client[DATABASE_NAME]
+        collection = db[COLLECTION_NAME]
+        print(f"✅ Connected to MongoDB: {DATABASE_NAME}.{COLLECTION_NAME}")
+        return True
+    except Exception as e:
+        print(f"❌ Strategy 2 failed: {e}")
+
+    # All strategies failed
+    print("❌ All connection strategies failed")
     client = None
     db = None
     collection = None
+    return False
+
+# Try to connect to MongoDB
+connect_to_mongodb()
 
 def verify_signature(payload_body, signature_header):
     """Verify that the payload was sent from GitHub by validating SHA256 signature."""
@@ -216,7 +248,21 @@ def db_status():
         except Exception as e:
             return jsonify({'connected': False, 'error': str(e)}), 200
     else:
-        return jsonify({'connected': False, 'error': 'Database not initialized'}), 200
+        return jsonify({
+            'connected': False,
+            'error': 'Database not initialized',
+            'mongo_uri_exists': bool(MONGO_URI),
+            'mongo_uri_length': len(MONGO_URI) if MONGO_URI else 0
+        }), 200
+
+@app.route('/reconnect-db')
+def reconnect_db():
+    """Try to reconnect to database."""
+    success = connect_to_mongodb()
+    if success:
+        return jsonify({'status': 'success', 'message': 'Database reconnected'}), 200
+    else:
+        return jsonify({'status': 'failed', 'message': 'Database connection failed'}), 500
 
 if __name__ == '__main__':
     # Create indexes for better performance (only if MongoDB is connected)
